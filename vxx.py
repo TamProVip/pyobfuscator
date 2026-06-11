@@ -1,5 +1,5 @@
 
-import ast, random, marshal, base64, bz2, zlib, lzma, time, sys, threading
+import ast, random, marshal, base64, bz2, zlib, lzma, time, sys, threading, os
 from ast import *
 
 # Lấy version Python
