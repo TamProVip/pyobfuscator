@@ -1,10 +1,14 @@
 import ast, random, marshal, base64, bz2, zlib, lzma, time, sys, threading
 from ast import *
+
+# Lấy version Python
+ver = f"{sys.version_info.major}.{sys.version_info.minor}"
+
 try:
     from pystyle import *
 except ModuleNotFoundError:
     print('>> Installing Module')
-    __import__('os').system(f'pip{ver} install pystyle')
+    __import__('os').system(f'pip install pystyle')  # Bỏ {ver}
     from pystyle import *
 
 banner = f"""
