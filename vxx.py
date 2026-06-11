@@ -1,5 +1,5 @@
 import sys
-if __name__ != "__main__":
+if not sys.argv[0].endswith('vxx.py'):
     sys.exit(0)
 import ast, random, marshal, base64, bz2, zlib, lzma, time, sys, threading
 from ast import *
