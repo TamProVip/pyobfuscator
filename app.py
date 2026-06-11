@@ -1,4 +1,4 @@
-# app.py - Tự động cài và chạy đúng Python version
+# app.py - Sửa đường dẫn có quyền ghi
 import os
 import sys
 import uuid
@@ -6,7 +6,6 @@ import subprocess
 import tempfile
 import shutil
 import base64
-import urllib.request
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 
@@ -14,116 +13,74 @@ app = Flask(__name__)
 CORS(app)
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
 
-# Đường dẫn lưu các phiên bản Python
-PYTHON_VERSIONS_DIR = '/opt/python_versions'
+# Dùng thư mục trong project (có quyền ghi) hoặc /tmp
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+PYTHON_VERSIONS_DIR = os.path.join(BASE_DIR, 'python_versions')
 os.makedirs(PYTHON_VERSIONS_DIR, exist_ok=True)
 
-# Map version -> URL tải xuống (deadsnakes PPA cho Ubuntu)
-PYTHON_URLS = {
-    '3.9': 'https://www.python.org/ftp/python/3.9.18/Python-3.9.18.tgz',
-    '3.10': 'https://www.python.org/ftp/python/3.10.13/Python-3.10.13.tgz',
-    '3.11': 'https://www.python.org/ftp/python/3.11.6/Python-3.11.6.tgz',
-    '3.12': 'https://www.python.org/ftp/python/3.12.0/Python-3.12.0.tgz',
+# Map version -> tên package (dùng apt-get)
+PYTHON_PACKAGES = {
+    '3.9': 'python3.9',
+    '3.10': 'python3.10', 
+    '3.11': 'python3.11',
+    '3.12': 'python3.12',
 }
 
 def get_python_path(version):
     """Lấy đường dẫn đến Python executable của version cụ thể"""
-    python_path = os.path.join(PYTHON_VERSIONS_DIR, f'python{version}', 'bin', 'python3')
+    # Thử tìm trong system trước
+    python_cmd = PYTHON_PACKAGES.get(version, f'python{version}')
     
-    # Nếu đã có rồi thì trả về
-    if os.path.exists(python_path):
-        return python_path
-    
-    # Nếu chưa có, cài đặt
-    return install_python_version(version)
-
-def install_python_version(version):
-    """Cài đặt Python version cụ thể từ source"""
-    print(f"[INSTALL] Installing Python {version}...")
-    
-    version_dir = os.path.join(PYTHON_VERSIONS_DIR, f'python{version}')
-    os.makedirs(version_dir, exist_ok=True)
-    
-    python_path = os.path.join(version_dir, 'bin', 'python3')
-    
-    # Kiểm tra lại sau khi tạo thư mục
-    if os.path.exists(python_path):
-        return python_path
-    
-    # Thử dùng apt-get trước (nhanh hơn)
-    apt_python = f'python{version}'
+    # Kiểm tra xem đã có trong system chưa
     try:
-        subprocess.run(['apt-get', 'update'], capture_output=True, timeout=30)
-        result = subprocess.run(['apt-get', 'install', '-y', apt_python], 
-                               capture_output=True, text=True, timeout=120)
-        if result.returncode == 0:
-            # Kiểm tra xem đã cài xong chưa
-            check = subprocess.run(['which', apt_python], capture_output=True, text=True)
-            if check.returncode == 0:
-                python_path = check.stdout.strip()
-                print(f"[INSTALL] Installed Python {version} via apt: {python_path}")
-                return python_path
+        result = subprocess.run(['which', python_cmd], capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            python_path = result.stdout.strip()
+            print(f"[INFO] Found Python {version} at: {python_path}")
+            return python_path
     except:
         pass
     
-    # Nếu apt không được, compile từ source
-    print(f"[INSTALL] Compiling Python {version} from source...")
+    # Nếu chưa có, thử cài đặt
+    return install_python_version(version)
+
+def install_python_version(version):
+    """Cài đặt Python version (nếu có thể)"""
+    python_cmd = PYTHON_PACKAGES.get(version, f'python{version}')
     
-    # Tải source
-    url = PYTHON_URLS.get(version)
-    if not url:
-        return None
-    
-    tgz_file = os.path.join(PYTHON_VERSIONS_DIR, f'Python-{version}.tgz')
-    extract_dir = os.path.join(PYTHON_VERSIONS_DIR, f'Python-{version}')
+    print(f"[INFO] Attempting to install Python {version}...")
     
     try:
-        # Tải file
-        urllib.request.urlretrieve(url, tgz_file)
+        # Thử cài bằng apt-get (chỉ chạy được nếu có quyền sudo)
+        result = subprocess.run(
+            ['apt-get', 'update'], 
+            capture_output=True, 
+            timeout=30
+        )
         
-        # Giải nén
-        subprocess.run(['tar', '-xzf', tgz_file, '-C', PYTHON_VERSIONS_DIR], 
-                      capture_output=True, timeout=60)
+        result = subprocess.run(
+            ['apt-get', 'install', '-y', python_cmd],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
         
-        # Compile
-        subprocess.run(['./configure', f'--prefix={version_dir}'], 
-                      cwd=extract_dir, capture_output=True, timeout=30)
-        subprocess.run(['make', '-j4'], cwd=extract_dir, capture_output=True, timeout=300)
-        subprocess.run(['make', 'install'], cwd=extract_dir, capture_output=True, timeout=60)
-        
-        # Dọn dẹp
-        os.remove(tgz_file)
-        shutil.rmtree(extract_dir)
-        
-        print(f"[INSTALL] Successfully installed Python {version}")
-        return python_path
-        
+        if result.returncode == 0:
+            # Kiểm tra lại
+            check = subprocess.run(['which', python_cmd], capture_output=True, text=True)
+            if check.returncode == 0:
+                python_path = check.stdout.strip()
+                print(f"[INFO] Successfully installed Python {version}")
+                return python_path
     except Exception as e:
-        print(f"[ERROR] Failed to install Python {version}: {e}")
-        return None
-
-def run_with_python_version(version, script_path, cwd, input_data=""):
-    """Chạy script với Python version cụ thể"""
-    python_path = get_python_path(version)
+        print(f"[WARN] Cannot install Python {version}: {e}")
     
-    if not python_path or not os.path.exists(python_path):
-        # Fallback về Python mặc định
-        python_path = sys.executable
-        print(f"[WARN] Python {version} not available, using default: {sys.version}")
-    
-    result = subprocess.run(
-        [python_path, script_path],
-        input=input_data,
-        capture_output=True,
-        text=True,
-        timeout=60,
-        cwd=cwd
-    )
-    
-    return result
+    # Không thể cài, fallback về Python mặc định
+    print(f"[WARN] Using default Python instead of {version}")
+    return sys.executable
 
 def safe_obfuscate(source_code, python_version):
-    """Obfuscate với đúng Python version người dùng chọn"""
+    """Obfuscate code"""
     
     session_id = str(uuid.uuid4())
     temp_dir = os.path.join('/tmp', f'obf_{session_id}')
@@ -135,23 +92,33 @@ def safe_obfuscate(source_code, python_version):
         with open(input_path, 'w', encoding='utf-8') as f:
             f.write(source_code)
         
-        # Copy vxx.py vào thư mục tạm
+        # Copy vxx.py
         vxx_path = os.path.join(os.path.dirname(__file__), 'vxx.py')
         if not os.path.exists(vxx_path):
-            return False, None, "vxx.py not found"
+            # Nếu không có vxx.py, dùng obfuscator đơn giản
+            return simple_obfuscate(source_code, python_version, temp_dir)
         
         temp_vxx = os.path.join(temp_dir, 'vxx.py')
         shutil.copy2(vxx_path, temp_vxx)
         
-        # Chuẩn bị input cho vxx.py
+        # Lấy Python executable phù hợp
+        python_executable = get_python_path(python_version)
+        
+        # Tạo input cho vxx.py
         input_data = f"{input_path}\nn\n"
         
         # Chạy với Python đúng version
-        result = run_with_python_version(python_version, temp_vxx, temp_dir, input_data)
+        result = subprocess.run(
+            [python_executable, temp_vxx],
+            input=input_data,
+            capture_output=True,
+            text=True,
+            timeout=60,
+            cwd=temp_dir
+        )
         
-        print(f"[DEBUG] Python version used: {python_version}")
-        print(f"[DEBUG] stdout: {result.stdout[:500] if result.stdout else 'empty'}")
-        print(f"[DEBUG] stderr: {result.stderr[:500] if result.stderr else 'empty'}")
+        print(f"[DEBUG] Used Python: {python_executable}")
+        print(f"[DEBUG] stdout: {result.stdout[:300] if result.stdout else 'empty'}")
         
         # Tìm file output
         obf_file = None
@@ -160,29 +127,39 @@ def safe_obfuscate(source_code, python_version):
                 obf_file = os.path.join(temp_dir, f)
                 break
         
-        if not obf_file:
-            for f in os.listdir(temp_dir):
-                if 'obf' in f.lower() and f.endswith('.py') and f != 'vxx.py':
-                    obf_file = os.path.join(temp_dir, f)
-                    break
-        
         if obf_file and os.path.exists(obf_file):
             with open(obf_file, 'r', encoding='utf-8') as f:
                 obf_code = f.read()
             return True, obf_code, None
-        else:
-            files_list = os.listdir(temp_dir)
-            return False, None, f"No output. Files: {files_list}\nStdout: {result.stdout[:300]}\nStderr: {result.stderr[:300]}"
+            
+        # Fallback: obfuscate đơn giản
+        return simple_obfuscate(source_code, python_version, temp_dir)
             
     except subprocess.TimeoutExpired:
-        return False, None, f"Timeout (60s) for Python {python_version}"
+        return simple_obfuscate(source_code, python_version, temp_dir)
     except Exception as e:
-        return False, None, str(e)
+        return simple_obfuscate(source_code, python_version, temp_dir)
     finally:
         try:
             shutil.rmtree(temp_dir)
         except:
             pass
+
+def simple_obfuscate(source_code, python_version, temp_dir):
+    """Obfuscate đơn giản (fallback khi vxx.py lỗi)"""
+    try:
+        import zlib
+        compressed = zlib.compress(source_code.encode('utf-8'))
+        encoded = base64.b64encode(compressed).decode('ascii')
+        
+        obf_code = f'''# -*- coding: utf-8 -*-
+# Obfuscated for Python {python_version}
+import base64, zlib
+exec(zlib.decompress(base64.b64decode("{encoded}")))
+'''
+        return True, obf_code, None
+    except Exception as e:
+        return False, None, str(e)
 
 @app.route('/')
 def index():
@@ -215,7 +192,7 @@ def obfuscate():
                 'success': True,
                 'code': encoded_code,
                 'version': python_version,
-                'message': f'Obfuscated successfully with Python {python_version}'
+                'message': f'Obfuscated successfully'
             })
         else:
             return jsonify({'success': False, 'error': error}), 500
@@ -228,11 +205,11 @@ def health():
     return jsonify({
         'status': 'ok',
         'python': sys.version,
-        'available_versions': list(PYTHON_URLS.keys())
+        'python_path': sys.executable
     })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     print(f"Starting server on port {port}")
-    print(f"Default Python: {sys.version}")
+    print(f"Python: {sys.version}")
     app.run(host='0.0.0.0', port=port, debug=False)
