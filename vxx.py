@@ -1285,6 +1285,8 @@ code = moreobf1(code)
 code = marshal.dumps(compile(ast.unparse(code), '<string>', 'exec'))
 code = base64.a85encode(bz2.compress(zlib.compress(lzma.compress(code))))
 
-open("obf-"+file_name,'wb').write(BattleBank.replace("BYTECODE", str(code)).encode())
+# Lấy chỉ tên file, không lấy đường dẫn
+base_name = os.path.basename(file_name)
+open("obf-"+base_name,'wb').write(BattleBank.replace("BYTECODE", str(code)).encode())
 print(Colorate.Diagonal(Colors.DynamicMIX((Col.red, Colors.StaticMIX((Col.light_blue, Col.light_gray, Col.light_red)))), f'>> Saved in {"obf-"+file_name}'))
 print(Colorate.Diagonal(Colors.DynamicMIX((Col.red, Colors.StaticMIX((Col.light_blue, Col.light_gray, Col.light_red)))), f'>> Done in {time.time()-st:.3f}s'))
