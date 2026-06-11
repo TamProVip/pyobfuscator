@@ -5,13 +5,7 @@ from ast import *
 # Lấy version Python
 ver = f"{sys.version_info.major}.{sys.version_info.minor}"
 
-try:
-    from pystyle import *
-except ModuleNotFoundError:
-    print('>> Installing Module')
-    __import__('os').system(f'pip{ver} install pystyle')  # Bỏ {ver}
-    from pystyle import *
-
+from pystyle import *
 banner = f"""
     [+] VER: 1.0 ORCA
     [+] Running with Python: {sys.version_info.major}.{sys.version_info.minor}
