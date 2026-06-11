@@ -22,7 +22,6 @@
             overflow-x: hidden;
         }
 
-        /* Animated background */
         .bg-animation {
             position: fixed;
             top: 0;
@@ -67,7 +66,6 @@
             50% { transform: translateY(-50px) rotate(180deg); }
         }
 
-        /* Container */
         .container {
             position: relative;
             z-index: 1;
@@ -76,7 +74,6 @@
             padding: 2rem;
         }
 
-        /* Header */
         .header {
             text-align: center;
             margin-bottom: 3rem;
@@ -119,7 +116,6 @@
             color: #4CAF50;
         }
 
-        /* Upload Area */
         .upload-area {
             background: rgba(255, 255, 255, 0.05);
             backdrop-filter: blur(10px);
@@ -181,7 +177,6 @@
             display: none;
         }
 
-        /* Version Cards */
         .version-section {
             margin-bottom: 2rem;
         }
@@ -291,7 +286,6 @@
             color: #4CAF50;
         }
 
-        /* Action Buttons */
         .action-buttons {
             display: flex;
             gap: 1rem;
@@ -334,7 +328,6 @@
             transform: scale(1.05);
         }
 
-        /* Loading Overlay */
         .loading-overlay {
             position: fixed;
             top: 0;
@@ -363,7 +356,6 @@
             to { transform: rotate(360deg); }
         }
 
-        /* Toast Notification */
         .toast {
             position: fixed;
             bottom: 30px;
@@ -382,7 +374,6 @@
             transform: translateX(0);
         }
 
-        /* Response Area */
         .response-area {
             margin-top: 2rem;
             background: rgba(0, 0, 0, 0.3);
@@ -399,9 +390,9 @@
             white-space: pre-wrap;
             word-wrap: break-word;
             color: #4CAF50;
+            max-height: 400px;
         }
 
-        /* Footer */
         .footer {
             text-align: center;
             margin-top: 3rem;
@@ -411,7 +402,6 @@
             color: #666;
         }
 
-        /* Responsive */
         @media (max-width: 768px) {
             .container {
                 padding: 1rem;
@@ -458,7 +448,6 @@
                 Select Python Version for Obfuscation
             </div>
             <div class="cards-grid" id="cardsGrid">
-                <!-- Card 3.9 -->
                 <div class="card" data-version="3.9" style="animation-delay: 0.1s">
                     <div class="card-version">3.9</div>
                     <div class="card-name">Python 3.9.x</div>
@@ -469,7 +458,6 @@
                         <li><i class="fas fa-bug"></i> Anti-Debugger</li>
                     </ul>
                 </div>
-                <!-- Card 3.10 -->
                 <div class="card" data-version="3.10" style="animation-delay: 0.2s">
                     <div class="card-version">3.10</div>
                     <div class="card-name">Python 3.10.x</div>
@@ -480,7 +468,6 @@
                         <li><i class="fas fa-chart-line"></i> Optimized Obfuscation</li>
                     </ul>
                 </div>
-                <!-- Card 3.11 -->
                 <div class="card" data-version="3.11" style="animation-delay: 0.3s">
                     <div class="card-version">3.11</div>
                     <div class="card-name">Python 3.11.x</div>
@@ -491,7 +478,6 @@
                         <li><i class="fas fa-fingerprint"></i> Runtime Fingerprint</li>
                     </ul>
                 </div>
-                <!-- Card 3.12 -->
                 <div class="card" data-version="3.12" style="animation-delay: 0.4s">
                     <div class="card-version">3.12</div>
                     <div class="card-name">Python 3.12.x</div>
@@ -555,6 +541,9 @@
         let selectedVersion = null;
         let selectedFile = null;
 
+        // Get API base URL (dùng cùng domain với trang web)
+        const API_BASE = window.location.origin;
+
         // Card selection
         document.querySelectorAll('.card').forEach(card => {
             card.addEventListener('click', () => {
@@ -582,7 +571,6 @@
             }
         });
 
-        // Show toast
         function showToast(message, type = 'success') {
             const toast = document.getElementById('toast');
             const toastMsg = document.getElementById('toastMessage');
@@ -607,7 +595,6 @@
             }, 3000);
         }
 
-        // Show loading
         function showLoading() {
             document.getElementById('loadingOverlay').style.display = 'flex';
         }
@@ -616,7 +603,6 @@
             document.getElementById('loadingOverlay').style.display = 'none';
         }
 
-        // Show response
         function showResponse(content, isError = false) {
             const area = document.getElementById('responseArea');
             const contentDiv = document.getElementById('responseContent');
@@ -628,9 +614,8 @@
             }, 100);
         }
 
-        // Obfuscate function
+        // Hàm obfuscate - GỌI API THẬT
         async function obfuscate() {
-            // Validation
             if (!selectedFile) {
                 showToast('Please select a .py file first!', 'error');
                 return;
@@ -643,44 +628,24 @@
 
             showLoading();
 
-            // Create form data
             const formData = new FormData();
             formData.append('file', selectedFile);
             formData.append('version', selectedVersion);
 
             try {
-                // Simulate API call - Replace with your actual backend URL
-                // const response = await fetch('https://your-api.onrender.com/obfuscate', {
-                const response = await new Promise((resolve) => {
-                    // Simulate network delay
-                    setTimeout(() => {
-                        resolve({
-                            ok: true,
-                            text: async () => {
-                                return `# Obfuscated for Python ${selectedVersion}
-# Generated by PyObfuscator Pro
-# Anti-Hook: Enabled
-# Anti-Debug: Enabled
-
-import base64, zlib, marshal
-
-__code__ = b'${btoa(Array(100).fill(0).map(() => String.fromCharCode(Math.floor(Math.random() * 26) + 97)).join(''))}'
-
-def __protected_exec__():
-    exec(marshal.loads(zlib.decompress(base64.b64decode(__code__))))
-
-if __name__ == '__main__':
-    __protected_exec__()`;
-                            }
-                        });
-                    }, 2000);
+                const response = await fetch(`${API_BASE}/obfuscate`, {
+                    method: 'POST',
+                    body: formData
                 });
 
-                if (response.ok) {
-                    const result = await response.text();
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Decode base64 nhận được từ server
+                    const decodedCode = atob(data.code);
                     
-                    // Create download
-                    const blob = new Blob([result], { type: 'text/plain' });
+                    // Tạo file download
+                    const blob = new Blob([decodedCode], { type: 'text/plain' });
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
@@ -690,10 +655,10 @@ if __name__ == '__main__':
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
                     
-                    showResponse(result.substring(0, 500) + (result.length > 500 ? '\n\n... (truncated, download saved)' : ''), false);
-                    showToast(`Obfuscated successfully with Python ${selectedVersion}!`, 'success');
+                    showResponse(decodedCode.substring(0, 500) + (decodedCode.length > 500 ? '\n\n... (truncated, download saved)' : ''), false);
+                    showToast(data.message || `Obfuscated successfully with Python ${selectedVersion}!`, 'success');
                 } else {
-                    throw new Error('Obfuscation failed');
+                    throw new Error(data.error || 'Obfuscation failed');
                 }
             } catch (error) {
                 console.error(error);
@@ -704,7 +669,6 @@ if __name__ == '__main__':
             }
         }
 
-        // Reset function
         function reset() {
             selectedVersion = null;
             selectedFile = null;
@@ -722,7 +686,7 @@ if __name__ == '__main__':
         document.getElementById('obfuscateBtn').addEventListener('click', obfuscate);
         document.getElementById('resetBtn').addEventListener('click', reset);
 
-        // Drag and drop support
+        // Drag and drop
         const uploadArea = document.querySelector('.upload-area');
         
         uploadArea.addEventListener('dragover', (e) => {
