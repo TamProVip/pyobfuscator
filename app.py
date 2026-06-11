@@ -1,16 +1,4 @@
-import sys
-import logging
 
-# Log lỗi ra file
-logging.basicConfig(level=logging.DEBUG)
-
-try:
-    import vxx
-    print("[DEBUG] vxx.py imported successfully")
-except Exception as e:
-    print(f"[ERROR] Failed to import vxx: {e}")
-    import traceback
-    traceback.print_exc()
 # app.py - Phiên bản chạy vxx.py thật
 import os
 import sys
@@ -84,7 +72,7 @@ except Exception as e:
             [sys.executable, runner_path],
             capture_output=True,
             text=True,
-            timeout=60,  # Tăng timeout vì vxx.py chạy lâu
+            timeout=120,  # Tăng timeout vì vxx.py chạy lâu
             cwd=temp_dir
         )
         
