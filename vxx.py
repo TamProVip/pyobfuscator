@@ -9,7 +9,7 @@ try:
     from pystyle import *
 except ModuleNotFoundError:
     print('>> Installing Module')
-    __import__('os').system(f'pip install pystyle')  # Bỏ {ver}
+    __import__('os').system(f'pip{ver} install pystyle')  # Bỏ {ver}
     from pystyle import *
 
 banner = f"""
