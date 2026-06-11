@@ -1,5 +1,4 @@
-
-# app.py - Phiên bản chạy vxx.py thật
+# app.py - Phiên bản hoàn chỉnh không lỗi
 import os
 import sys
 import uuid
@@ -7,12 +6,13 @@ import subprocess
 import tempfile
 import shutil
 import base64
+import time
 from flask import Flask, request, render_template, jsonify
 from flask_cors import CORS
 
 app = Flask(__name__)
 CORS(app)
-app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024
+app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10MB
 
 def safe_obfuscate(source_code, python_version):
     """Chạy vxx.py thật để obfuscate code"""
@@ -30,36 +30,44 @@ def safe_obfuscate(source_code, python_version):
         # Copy vxx.py vào thư mục tạm
         vxx_path = os.path.join(os.path.dirname(__file__), 'vxx.py')
         if not os.path.exists(vxx_path):
-            return False, None, "vxx.py not found"
+            return False, None, "vxx.py not found on server"
         
         temp_vxx = os.path.join(temp_dir, 'vxx.py')
         shutil.copy2(vxx_path, temp_vxx)
         
-        # Tạo script tự động trả lời input cho vxx.py
+        # Tạo script Python để chạy vxx.py với input tự động
         runner_script = f'''import sys
 import os
+import subprocess
 
 os.chdir(r"{temp_dir}")
 
-# Mock input để tự động trả lời
-original_input = __builtins__.input
+# Tạo file chứa input
+input_content = r"{input_path}\\nn"
+with open("auto_input.txt", "w") as f:
+    f.write(input_content)
 
-def mock_input(prompt):
-    if "Enter Your File Name" in prompt:
-        return r"{input_path}"
-    elif "More Obf" in prompt or "more obf" in prompt.lower():
-        return "y"
-    return ""
-
-__builtins__.input = mock_input
-
-# Chạy vxx.py
+# Chạy vxx.py với input từ file
 try:
-    exec(open(r"{temp_vxx}", encoding="utf-8").read())
+    with open("auto_input.txt", "r") as stdin_file:
+        result = subprocess.run(
+            [sys.executable, "vxx.py"],
+            stdin=stdin_file,
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+    
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print("STDERR:", result.stderr, file=sys.stderr)
+        
+except subprocess.TimeoutExpired:
+    print("ERROR: Timeout")
+    sys.exit(1)
 except Exception as e:
-    print(f"VXX_ERROR: {{e}}")
-    import traceback
-    traceback.print_exc()
+    print(f"ERROR: {{e}}")
     sys.exit(1)
 '''
         
@@ -72,12 +80,12 @@ except Exception as e:
             [sys.executable, runner_path],
             capture_output=True,
             text=True,
-            timeout=120,  # Tăng timeout vì vxx.py chạy lâu
+            timeout=90,
             cwd=temp_dir
         )
         
-        print(f"[DEBUG] stdout: {result.stdout}")
-        print(f"[DEBUG] stderr: {result.stderr}")
+        print(f"[DEBUG] stdout: {result.stdout[:500] if result.stdout else 'empty'}")
+        print(f"[DEBUG] stderr: {result.stderr[:500] if result.stderr else 'empty'}")
         
         # Tìm file output (vxx.py tạo ra file obf-*.py)
         obf_file = None
@@ -89,7 +97,7 @@ except Exception as e:
         # Thử tìm các dạng tên khác
         if not obf_file:
             for f in os.listdir(temp_dir):
-                if 'obf' in f.lower() and f.endswith('.py'):
+                if 'obf' in f.lower() and f.endswith('.py') and f not in ['runner.py', 'vxx.py']:
                     obf_file = os.path.join(temp_dir, f)
                     break
         
@@ -98,12 +106,11 @@ except Exception as e:
                 obf_code = f.read()
             return True, obf_code, None
         else:
-            # Log để debug
             files_list = os.listdir(temp_dir)
-            return False, None, f"No obfuscated file found. Files in temp dir: {files_list}\nOutput: {result.stdout[:500]}\nError: {result.stderr[:500]}"
+            return False, None, f"No obfuscated file found. Files: {files_list}\nOutput: {result.stdout[:300]}\nError: {result.stderr[:300]}"
             
     except subprocess.TimeoutExpired:
-        return False, None, "Timeout (60s) - vxx.py took too long"
+        return False, None, "Timeout (90s) - vxx.py took too long"
     except Exception as e:
         return False, None, str(e)
     finally:
@@ -119,6 +126,7 @@ def index():
 @app.route('/obfuscate', methods=['POST'])
 def obfuscate():
     try:
+        # Kiểm tra file upload
         if 'file' not in request.files:
             return jsonify({'error': 'No file uploaded'}), 400
         
@@ -131,23 +139,34 @@ def obfuscate():
         
         python_version = request.form.get('version', '3.11')
         
-        source_code = file.read().decode('utf-8')
+        # Đọc nội dung file
+        try:
+            source_code = file.read().decode('utf-8')
+        except UnicodeDecodeError:
+            return jsonify({'error': 'File must be UTF-8 encoded'}), 400
         
         if len(source_code) > 5 * 1024 * 1024:
             return jsonify({'error': 'File too large (max 5MB)'}), 400
         
+        # Thực hiện obfuscate
         success, obf_code, error = safe_obfuscate(source_code, python_version)
         
         if success:
+            # Mã hóa base64 để gửi qua JSON an toàn
             encoded_code = base64.b64encode(obf_code.encode('utf-8')).decode('ascii')
             return jsonify({
                 'success': True,
                 'code': encoded_code,
                 'version': python_version,
-                'message': 'Obfuscated successfully with vxx.py'
+                'message': f'Obfuscated successfully with Python {python_version}',
+                'original_size': len(source_code),
+                'obfuscated_size': len(obf_code)
             })
         else:
-            return jsonify({'success': False, 'error': error}), 500
+            return jsonify({
+                'success': False,
+                'error': error
+            }), 500
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -164,4 +183,8 @@ def health():
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
+    print(f"Starting server on port {port}")
+    print(f"Python version: {sys.version}")
+    vxx_exists = os.path.exists(os.path.join(os.path.dirname(__file__), 'vxx.py'))
+    print(f"vxx.py exists: {vxx_exists}")
     app.run(host='0.0.0.0', port=port, debug=False)
